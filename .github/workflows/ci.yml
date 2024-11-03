@@ -1,4 +1,3 @@
-
 name: Basic CI Pipeline
 
 on:
@@ -11,20 +10,55 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # Use the latest Ubuntu image
+    runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       
       - name: Set up Java 11
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           java-version: '11'
           distribution: 'temurin'
       
+      - name: Checkstyle for Java
+        uses: dbelyaev/action-checkstyle@v1.7.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}  # Uses default GitHub token
+          workdir: "."  # Assuming Checkstyle should run from the root directory
+          level: "warning"  # Can set as "info", "warning", or "error"
+          reporter: "github-pr-check"  # Displays check results in PRs
+          filter_mode: "added"  # Only comments on changes
+          fail_on_error: "false"  # Allows workflow to continue even if Checkstyle finds issues
+          checkstyle_config: "google_checks.xml"  # Use Google coding conventions
+          checkstyle_version: "10.3.4"  # Replace with preferred Checkstyle version
+          
+      - name: Cache Maven packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
       - name: Build with Maven
         run: mvn -B package --file pom.xml
       
       - name: Run tests
         run: mvn test
+  codeql-analysis:
+    # CodeQL job to run security analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: java
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
